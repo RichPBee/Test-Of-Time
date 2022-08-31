@@ -1,0 +1,391 @@
+<html>
+<head>
+
+<title>Test of Time prototype</title>
+<script lang = "JavaScript" type = "Text/JavaScript">
+//Gamestate objects for initialisation, defining current state and Year 1. 
+
+let initialGamestate = {
+    year: 0,
+    population: 0,
+    bondsYouHave: 0,
+    coinsYouHave: 0,
+    newcomers: 0,
+    starved: 0,
+    deadFromWar: 0,
+    immunePopulation: 0,
+    infrastructure: 0,
+    survivingWar: 0,
+    tax: 0,
+    taxing: 0,
+    wages: 0,
+    bondPrice: 0,
+    counterToOverthrow: 0
+};
+
+let currentGamestate = initialGamestate;
+let gamestate;
+let extraEducationAmount;
+let dummyGamestate = Object.assign({}, currentGamestate);
+
+let primaryGamestate = {
+    year: 1,
+    population: 100,
+    bondsYouHave: 1000,
+    coinsYouHave: 2500, 
+    newcomers: 0,
+    starved: 0,
+    deadFromWar: 0,
+    immunePopulation: 0.6,
+    infrastructure: 0,
+    survivingWar: 0.75,
+    tax: 0,
+    taxing: 0,
+    wages: 35,
+    bondPrice: 0,
+    counterToOverthrow: 0
+};
+
+//Function that returns a random number, allowing for a minimum value.
+function getRandom(max, min = 0){
+    return Math.floor(Math.random() * (max - min) + min);
+}
+
+//Outputs data from gameplay to HTML form, displays in main text-box. 
+function printForm(form, data)
+{
+  form.commentwin.value += data;
+};
+
+//Defines the operation of the "GO" button. 
+function goButton(form) {
+    if (currentGamestate === initialGamestate) {
+        currentGamestate = primaryGamestate;
+        updateDummy(dummyGamestate);
+        yearlyReport(form, dummyGamestate);
+        let gamestate = currentGamestate;
+    } else if (year < 10) {
+        currentGamestate = dummyGamestate;
+        advanceYear(form);
+        let gamestate = currentGamestate;
+    } else if (year === 10) {
+        finalReport(form);
+    }
+};
+
+//sets each property of the dummy gamestate equal to the current gamestate's properties.
+function updateDummy(gamestate) {
+    gamestate.coinsYouHave = currentGamestate.coinsYouHave;
+    gamestate.population = currentGamestate.population;
+    gamestate.bondsYouHave = currentGamestate.bondsYouHave;
+    gamestate.wages = currentGamestate.wages;
+    gamestate.survivingWar = currentGamestate.survivingWar;
+    gamestate.infrastructure = currentGamestate.infrastructure;
+}
+
+//This generates a report string for each year of gameplay. 
+function yearlyReport(form, gamestate) {
+    form.commentwin.value = "";
+    currentGamestate.bondPrice = getRandom(30, 10);
+    let epidemics = getRandom(100);
+    let moneyToTheRoyalFamily = Math.floor(getRandom(gamestate.coinsYouHave) * 0.1);
+    let remainingMoney = gamestate.coinsYouHave - moneyToTheRoyalFamily
+    let overthrowNumer = gamestate.wages + gamestate.bondsYouHave + gamestate.coinsYouHave;
+    let overthrowDenom = gamestate.population * gamestate.population;
+    let percentageToOverthrow = Math.floor((overthrowNumer/overthrowDenom) * 100);
+    let reportString = `My Lord. I beg to report that, in year ${gamestate.year} of your rule:.\n`
+
+    //Handles the report on how many people died. 
+    if ((gamestate.starved + gamestate.deadFromWar) === 1) {
+        reportString += `1 person died, and`;
+    } else {
+        reportString += ` ${gamestate.starved + gamestate.deadFromWar} people died, and`;
+    }
+    
+    //Handles the report on newcomers into the city.
+    if (gamestate.newcomers === 1) {
+        reportString += ` 1 person came to live in the city.\n`;
+    } else {
+        reportString += ` ${gamestate.newcomers} people came to live in the city.\n`
+    }
+
+    //Handles the Epidemic/War random event. 
+    if (epidemics > 85 && epidemics <= 100) {
+        gamestate.population = Math.round(gamestate.population * gamestate.immunePopulation);
+        reportString += `An epidemic has struck! People are dying!`;
+    } else if (epidemics > 65) {
+        gamestate.population = Math.round(gamestate.population * gamestate.survivingWar);
+        reportString += `We have been attacked! Many of your subjects have died fighting for your cause!`
+    }
+
+    //Handles the actual yearly report output. 
+    reportString += ` The population is now ${gamestate.population}.\n
+    We have made ${gamestate.tax} gold from tax, taking ${gamestate.taxing}% per person.
+    We have given ${moneyToTheRoyalFamily} gold to the Royal Family, leaving ${remainingMoney} gold in the coffers.\n
+    ${percentageToOverthrow}% of your population would assist in your ascension to the throne.\n
+    The city currently owns ${gamestate.bondsYouHave} trading bonds.
+    The trading price is now ${gamestate.bondPrice} per bond.`
+
+    printForm(form, reportString);
+    clearInputs(form);
+    updateData(form);
+};
+
+//Updates bonds and money based on player input into the trading box.
+function updateTrade(form) {
+    let tradeAmount = getTrading(form);
+    let trading = tradeAmount * currentGamestate.bondPrice;
+    
+    if (tradeAmount < 0 || tradeAmount === "") {
+        tradeAmount = 0;
+        form.tradeamount.value = tradeAmount;
+    } 
+
+    if (trading > dummyGamestate.coinsYouHave) {
+        alert(`My Lord, be careful! If you continue we will be in debt, you only have
+        ${currentGamestate.coinsYouHave} gold in the coffers to buy bonds with.`);
+    }
+
+    if (form.tradetype[0].checked === true) {
+        dummyGamestate.coinsYouHave = currentGamestate.coinsYouHave - trading;
+        dummyGamestate.bondsYouHave = currentGamestate.bondsYouHave + parseInt(tradeAmount);
+    } else if (form.tradetype[1].checked === true) {
+        dummyGamestate.coinsYouHave = currentGamestate.coinsYouHave + trading;
+        dummyGamestate.bondsYouHave = currentGamestate.bondsYouHave - tradeAmount;
+    }
+    updateData(form);
+}
+
+//Updates population and money based on player input into the 'feeding' box.
+function updateFood(form) {
+    let feedAmount = getFeeding(form);
+    let feeding = feedAmount * 20;
+
+    if (feedAmount < 0 || feedAmount === "") {
+        feedAmount = 0;
+        form.foodamount.value = feedAmount;
+        dummyGamestate.population = currentGamestate.population;
+        dummyGamestate.coinsYouHave = currentGamestate.coinsYouHave;
+    } else if (feedAmount >= 0 && feedAmount !== "") {
+        let starved = currentGamestate.population - feedAmount;
+        dummyGamestate.population = currentGamestate.population - starved;
+        dummyGamestate.coinsYouHave = currentGamestate.coinsYouHave - feeding;
+    }
+
+    if (feeding > dummyGamestate.coinsYouhave) {
+      alert(`My Lord! Think again -- you only have 
+        ${currentGamestate.coinsYouhave} gold in the coffers`);
+    }
+    updateData(form)
+}
+
+//Updates money based on player input into the tax box.
+function updateTax(form) {
+    let taxAmount = getTaxing(form);
+    let taxPercentage = taxAmount/100;
+    let totalTax = taxPercentage * currentGamestate.population * currentGamestate.wages;
+    checkTaxAmount(taxAmount);
+
+    if (taxAmount < 0 || taxAmount === "") {
+        taxAmount = 0;
+        form.taxamount.value = taxAmount;
+        dummyGamestate.coinsYouHave = currentGamestate.coinsYouHave;
+    } else if (taxAmount >= 0 && taxAmount !== "") {
+        dummyGamestate.coinsYouHave = Math.round(currentGamestate.coinsYouHave + totalTax);
+    }
+    updateData(form);
+}
+
+//Functions that deal with the investment textboxes. 
+function investEducation(form){
+
+}
+
+function investWar(form){
+
+}
+
+function investInfra(form){
+
+}
+
+//This updates the readouts shown on the page. 
+function updateData(form) {
+    let extraEducationAmount = 0;
+    form.storewin.value = dummyGamestate.coinsYouHave;
+    form.popwin.value = dummyGamestate.population;
+    form.landpwin.value = currentGamestate.bondPrice;
+    form.acrewin.value = dummyGamestate.bondsYouHave;
+    if (gamestate !== currentGamestate) return;
+
+    form.storewin.value = currentGamestate.coinsYouHave;
+    form.popwin.value = currentGamestate.population;
+    form.landpwin.value = currentGamestate.bondsYouHave + (trading/bondPrice);
+    clearRadioButton(form);
+    clearInputs(form);
+};
+
+//Returns the number the player input into each text box. 
+function getTrading(form) {
+    tradeAmount = form.tradeamount.value;
+    return tradeAmount;
+};
+
+function getFeeding(form) {
+    feedAmount = form.foodamount.value;
+    return feedAmount;
+};
+
+function getTaxing(form) {
+    taxAmount = form.taxamount.value;
+    return taxAmount;
+}
+
+//Checks you are not taxing unfairly!!
+function checkTaxAmount(num) {
+    if (num > 30) {
+        window.alert(`That is too much, you cannot tax the people more than 30%.`)
+    }
+}
+
+//Function for clearing the radio buttons on the HTML page. 
+function clearRadioButton(form) {
+    form.wartype[0].checked = 0;
+    form.Investtype[0].checked = 0;
+    form.Investtype[1].checked = 0;
+    form.Investtype[2].checked = 0;
+};
+
+//Function for clearing each of the inputs used in game, after the yearly report has been given.
+function clearInputs(form) {
+  form.tradetype[0].checked = 1;
+  form.wartype[0].checked = 0;
+  trading = feeding = taxing = 0;
+  form.tradeamount.value = 0;
+  form.foodamount.value = 0;
+  form.taxamount.value = 0;
+  form.tradeamount.focus();
+};
+
+</script>
+</head>
+<body>
+
+<h1>Test of Time</h1>
+
+<div class="horiz-line"></div>
+
+<p>Test of time -
+Where you govern your own kingdom, in the name of the High King.
+The objective is to keep the kingdom growing.
+<form NAME="form1">
+<center>
+<textarea name="commentwin" COLS="50" ROWS="15">
+    Test of Time -
+
+Where you govern your own kingdom, in the name of the High King.
+The objective is to keep the kingdom growing.
+You must aim to have 120 people at the end of the 10 years.
+In order to progress, 70% of these people must be on your side. 
+Whether or not they are depends on their wages, the bonds/shares you have, and the coins that you have.
+Our only advice to you is, don't go crazy with power. You will be overthrown.
+Press "GO" when you are ready to begin. Good Luck.
+-Anonymous.
+
+</textarea><br>
+
+
+<table>
+<tr>
+  <td align="RIGHT">
+    Bonds/Shares you have:
+  </td>
+  <td>
+    <input TYPE="text" name="acrewin" SIZE="8" MAXLENGTH="7" disabled>
+  </td>
+  <td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td>
+  <td align="LEFT">
+    How many bonds/shares do you wish to<br> trade?
+    <input TYPE="radio" name="tradetype" value="buy" checked onClick="updateTrade(this.form);"> Buy
+    <input TYPE="radio" name="tradetype" value="sell" onClick="updateTrade(this.form);"> Sell
+  </td>
+  <td>
+    <input TYPE="text" name="tradeamount" SIZE="8" MAXLENGTH="7" onChange="updateTrade(this.form);">
+  </td>
+</tr>
+<tr>
+  <td align="RIGHT">
+    Population:
+  </td>
+  <td>
+    <input TYPE="text" name="popwin" SIZE="8" MAXLENGTH="7" disabled></center></td>
+  </td>
+  <td>
+  </td>
+  <td align="LEFT">
+    How many people do you wish to<br> feed?
+  </td>
+  <td>
+    <input TYPE="text" name="foodamount" SIZE="8" MAXLENGTH="7" onChange="updateFood(this.form);">
+  </td>
+</tr>
+<tr>
+  <td align="RIGHT">
+    Coins you have:
+  </td>
+  <td>
+    <input TYPE="text" name="storewin" SIZE="8" MAXLENGTH="7" disabled>
+  </td>
+  <td>
+  </td>
+  <td align="LEFT">
+    How much do you want to tax the<br> people?
+  </td>
+  <td>
+    <input TYPE="text" name="taxamount" SIZE="8" MAXLENGTH="7" onChange="updateTax(this.form);">
+  </td>
+</tr>
+</tr>
+<tr></tr><tr></tr><tr>
+<tr></tr><tr></tr><tr>
+<td></td><td></td><td></td>
+  <td align="LEFT">
+    How are you going to invest this year?<br>
+    Education: <input TYPE="text" name="eduInvest" SIZE="8" MAXLENGTH="7" onChange="investEducation(this.form);">
+    War: <input TYPE="text" name="warInvest" SIZE="8" MAXLENGTH="7" onChange="investWar(this.form);">
+    Infrastructure: <input TYPE="text" name="infraInvest" SIZE="8" MAXLENGTH="7" onChange="investInfra(this.form);">
+  </td>
+    </tr>
+    </tr>
+    <tr></tr>
+<td></td><td></td><td></td>
+  <td align="LEFT">
+    Are we to go to war?
+    <input TYPE="radio" name="wartype" value="Yes" id="Go_To_War" onClick="updateWar(this.form);" > Yes
+    <input TYPE="radio" name="wartype" value="No" onClick="updateWar(this.form);"> No
+  </td>
+<tr>
+    <td align="RIGHT">
+    Price of bonds:
+  </td>
+  <td>
+    <input TYPE="text" name="landpwin" SIZE="8" MAXLENGTH="7" disabled>
+  </td>
+  <tr></tr><tr></tr><tr>
+  </tr>
+  <td></td>
+  <td colspan="2" align="center">
+    <input TYPE="button" NAME="GO" VALUE="GO" onClick="goButton(this.form);">
+    <input TYPE="button" NAME="ADVICE" VALUE="Advice" onClick="ShowTime();">
+    <input TYPE="button" NAME="LETTERS" VALUE="Letters" onClick="subjects();">
+  </td>
+    <tr/>
+</tr>
+</table>
+
+            </form>
+<p>
+<div class="horiz-line"></div>
+</body>
+
+</html>

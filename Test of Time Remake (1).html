@@ -1,0 +1,1356 @@
+<html>
+<head>
+<title>Survival</title>
+<!--<link href="Survival.css" rel="stylesheet" type="text/css">-->
+<SCRIPT LANGUAGE="JavaScript" TYPE="text/javascript">
+
+//Useful Classes
+class civilization {
+  constructor(name = "Unknown", age, pop, warrior, food, wood, stone, metal, techLevel, currency){
+    this.name = name;
+    this.age = age;
+    this.pop = pop;
+    this.warrior = warrior;
+    this.food = food;
+    this.wood = wood;
+    this.stone = stone;
+    this.metal = metal;
+    this.techLevel = techLevel;
+    this.currency = currency;
+  }
+}
+
+class resource {
+  constructor(name, priceLow, priceHigh, farmMin, farmMax) {
+    this.name = name;
+    this.priceLow = priceLow;
+    this.priceHigh = priceHigh;
+    this.farmMin = farmMin;
+    this.farmMax = farmMax;
+  }
+  
+
+  get sellPrice(){
+    return this.sellingPrice();
+  }
+
+  get buyPrice(){
+    return this.buyingPrice();
+  }
+
+  get farmAmount(){
+    return this.farmingAmount();
+  }
+
+  sellingPrice() {
+    sellingPriceCrnt = Math.floor(Math.random() * (this.priceHigh - this.priceLow) + this.priceLow);
+    return sellingPriceCrnt;
+    }
+  
+  buyingPrice(){
+    return this.priceHigh - sellingPriceCrnt;
+  }
+
+  farmingAmount(){
+    farmingAmountCrnt = Math.floor(Math.random() * (this.farmMax - this.farmMin + 1) + this.farmMin);
+    return farmingAmountCrnt;
+  }
+}
+
+//Global Variables
+var gamestate = 0;
+var enemy = new civilization();
+var player = new civilization();
+var food = new resource("food", 10, 25, 1, 6);
+var wood = new resource("wood", 10, 30, 1, 5);
+var stone = new resource("stone", 10, 40, 1, 4);
+var metal = new resource("metal", 100, 250, 0, 2);
+var playerName ;
+var sellingPriceCrnt;
+var farmingAmountCrnt;
+var woodRate;
+var stoneRate;
+var metalRate;
+var foodRate;
+var foodSellPrice;
+var foodBuyPrice;
+var woodSellPrice; 
+var woodBuyPrice;
+var stoneSellPrice;
+var stoneBuyPrice;
+var metalSellPrice;
+var metalBuyPrice;
+var checked;
+var totalTax = 0;
+var counter = 0;
+var strikeCounter = 0;
+var negStrikeCounter = 0;
+var deadEachYear;
+var immiEachYear = 0;
+var bornEachYear= 0;
+var randomEvent;
+var numEnemies = 0;
+var timeToAttack = 0;
+var attackOpponent = 0;
+
+//Maybe write these into Civ class constructor
+var lumberjacks = 0;
+var miners = 0;
+var farmers = 0;
+var lumTemp = 0;
+var mineTemp = 0;
+var armyTemp = 0;
+var farmTemp = 0;
+var wages = calculateWage();
+var education = 1;
+var infrastructure = 1;
+var war = 1;
+
+function confirm(form) {
+    if (gamestate == 0) {
+        gamestate = 1;
+        prepGame(form);
+    }
+    else {
+        playerName = form.civName.value;
+        beginGame(form);
+    }
+}
+
+function checkPlayState(form, name, field) {
+  if (gamestate != 1) {
+    window.alert("You have not yet started, please press GO to begin.");
+    field = '0';
+    zeroInputSPCFC(form, name, field);
+  }
+}
+
+function prepGame(form) {
+  form.yearReport.value =`My King, it is a pleasure to be able to serve under you.
+                          Please enter a name for our civilization into the box below, and press GO again when you are ready to begin your rule.`;
+  playerName = prompt("Please enter a name for your civilization: ", "Specius");
+  form.civName.value = playerName;
+  confirm(form);
+}
+
+function beginGame(form) {
+  form.civName.value = playerName;
+  wages = calculateWage();
+  counter += 1;
+  document.getElementById("aY").disabled = false;
+  document.getElementById("Go").disabled = true;
+  enemy = new civilization(name, "None", 0 , 0 ,0 ,0 ,0 ,0 ,0 ,0 ,0);
+  player = new civilization(form.civName.value, "Stone",150 ,0, 450 ,100 ,50 ,0 ,0 ,500);
+  document.getElementById("civAge").value = player.age;
+  document.getElementById("civYear").value = counter;
+  enableInput(form);
+  updateEnemy(form, enemy);
+  updateCurrent(form, player);
+  calculateRates(form);
+  setChange(form, player);
+  updatePrices(form);
+  yearlyReport(form);
+}
+
+function enableInput(form) {
+  form.tradeFood.value = 0;
+  form.tradeWood.value = 0;
+  form.tradeStone.value = 0;
+  form.tradeMetal.value = 0;
+  form.newSoldier.value = 0;
+  form.newFarmer.value = 0;
+  form.newMiner.value = 0;
+  form.newWoodcut.value = 0;
+  form.feedAmount.value = 0;
+  form.taxAmount.value = 0;
+
+  form.tradeFood.disabled = false;
+  form.tradeWood.disabled = false;
+  form.tradeStone.disabled = false;
+  form.tradeMetal.disabled = false;
+  form.newSoldier.disabled = false;
+  form.newFarmer.disabled = false;
+  form.newMiner.disabled = false;
+  form.newWoodcut.disabled = false;
+  form.feedAmount.disabled = false;
+  form.taxAmount.disabled = false;
+}
+function advanceYear(form){
+  counter += 1
+  document.getElementById("civAge").value = player.age;
+  document.getElementById("civYear").value = counter;
+  yearlyPlayerUpdate(form);
+  runGameChecks(form); 
+  randomEvents(form);
+  strikeChecker(form);
+  enemyChecker(form);
+  yearlyPopChange(form);
+  yearlyReport(form);
+  updateCurrent(form, player);
+  calculateRates(form);
+  setChange(form, player);
+  updatePrices(form);
+  formResetter(form);
+  updateEnemy(form, enemy);
+
+}
+
+function calculateRates(form){
+  woodRate = wood.farmAmount;
+  stoneRate = stone.farmAmount;
+  metalRate = metal.farmAmount;
+  foodRate = food.farmAmount;
+  foodSellPrice = food.sellPrice;
+  foodBuyPrice = food.buyPrice;
+
+  woodSellPrice = wood.sellPrice; 
+  woodBuyPrice = wood.buyPrice;
+
+  stoneSellPrice = stone.sellPrice;
+  stoneBuyPrice = stone.buyPrice;
+
+  metalSellPrice = metal.sellPrice;
+  metalBuyPrice = metal.buyPrice;
+
+}
+
+function updateCurrent(form, civ) {
+  form.civName.value = playerName;
+  form.currentMoney.value = civ.currency;
+  form.currentPop.value = civ.pop;
+  form.totalPop.value = civ.pop;
+  form.currentArmy.value = civ.warrior;
+  form.currentFood.value = civ.food;
+  form.currentWood.value = civ.wood;
+  form.currentStone.value = civ.stone;
+  form.currentMetal.value = civ.metal;
+  form.currentTech.value = civ.techLevel;
+  form.currentFarmers.value = farmers;
+  form.currentLumbers.value = lumberjacks;
+  form.currentMiners.value = miners;
+}
+
+function yearlyPlayerUpdate(form){
+  newWorkPop = lumTemp + mineTemp + armyTemp + farmTemp;
+
+  player.currency = form.changeMoney.value;
+  player.pop = parseInt(form.changePop.value) + newWorkPop;
+  player.warrior = armyTemp;
+  player.food = parseInt(form.changeFood.value);
+  player.wood = parseInt(form.changeWood.value);
+  player.stone = parseInt(form.changeStone.value);
+  player.metal = parseInt(form.changeMetal.value);
+  player.techLevel;
+
+  lumberjacks = lumTemp;
+  miners = mineTemp;
+  farmers = farmTemp;
+  
+}
+
+function setChange(form, civ){
+  form.changeMoney.value = civ.currency;
+  form.changePop.value = civ.pop - (miners + lumberjacks + farmers + player.warrior);
+  form.changeArmy.value = civ.warrior;
+  form.changeFood.value = parseInt(civ.food) + (farmers * foodRate);
+  form.changeWood.value = parseInt(civ.wood) + (lumberjacks * woodRate);
+  form.changeStone.value = parseInt(civ.stone) + (miners * stoneRate);
+  form.changeMetal.value = parseInt(civ.metal) + (miners * metalRate);
+  form.changeTech.value = civ.techLevel;
+  form.totalPop.value = civ.pop;
+  lumTemp = lumberjacks;
+  mineTemp = miners;
+  farmTemp = farmers;
+  armyTemp = player.warrior;
+  form.changeFarmers.value = farmers;
+  form.changeLumbers.value = lumberjacks;
+  form.changeMiners.value = miners;
+  
+}
+
+function updateEnemy(form, civ) {
+  form.enemyMoney.value = civ.currency;
+  form.enemyPop.value = civ.pop;
+  form.enemyArmy.value = civ.warrior;
+  form.enemyFood.value = civ.food;
+  form.enemyWood.value = civ.wood;
+  form.enemyStone.value = civ.stone;
+  form.enemyMetal.value = civ.metal;
+}
+
+function updatePrices(form){
+  form.foodSellPrice.value = foodSellPrice;
+  form.foodBuyPrice.value = foodBuyPrice;
+
+  form.woodSellPrice.value = woodSellPrice;
+  form.woodBuyPrice.value = woodBuyPrice;
+
+  form.stoneSellPrice.value = stoneSellPrice;
+  form.stoneBuyPrice.value = stoneBuyPrice;
+
+  form.metalSellPrice.value = metalSellPrice;
+  form.metalBuyPrice.value = metalBuyPrice;
+}
+
+function updateChange(form, type, intVal) {
+  if (type == 'food') {
+    currentInt = parseInt(player.food) + parseInt(intVal) + (farmTemp * foodRate) - (parseInt(form.feedAmount.value) * 2);
+    form.changeFood.value = String(currentInt);
+  }
+  else if (type == 'wood') {
+    currentInt = player.wood + intVal + (lumTemp * woodRate);
+    form.changeWood.value = String(currentInt);
+  }
+  else if (type == 'stone') {
+    currentInt = player.stone + intVal + (mineTemp * stoneRate);
+    form.changeStone.value = String(currentInt);
+  }
+  else if (type == 'metal') {
+    currentInt = player.metal + intVal + (mineTemp * metalRate);
+    form.changeMetal.value = String(currentInt);
+  }
+  else if (type == 'feeding') {
+    pop = parseInt(player.pop);
+    unfed = pop - parseInt(intVal);
+    if (intVal == 0) {
+      unfed = 0;
+    } 
+    form.changePop.value = pop - unfed - (lumTemp + mineTemp + farmTemp + armyTemp);
+    negativePop = parseInt(form.changePop.value);
+    form.totalPop.value = pop - unfed;
+    
+    if (negativePop < 0) {
+      overflow = negativePop;
+      form.changePop.value = 0;
+      form.totalPop.value = pop - unfed + overflow;
+    }
+    
+  }
+  else if (type == 'lumberjack'){
+    sellChecker(form, form.tradetype2[1].checked, form.tradeWood.value);
+    form.changeWood.value = parseInt(player.wood) + checked + (lumTemp * woodRate);
+  }
+  else if (type == 'farmer'){
+    sellChecker(form, form.tradetype1[1].checked, form.tradeFood.value);
+    form.changeFood.value = parseInt(player.food) + checked + (farmTemp * foodRate) - (parseInt(form.feedAmount.value) * 2);
+  }
+  else if (type == 'miner'){
+    sellChecker(form, form.tradetype3[1].checked, form.tradeStone.value);
+    form.changeStone.value = parseInt(player.stone) + checked + (mineTemp * stoneRate);
+    sellChecker(form, form.tradetype4[1].checked, form.tradeMetal.value);
+    form.changeMetal.value = parseInt(player.metal) + checked + (mineTemp * metalRate);
+  }
+  
+}
+
+function formResetter(form){
+  form.tradetype1[0].checked = true;
+  form.tradetype2[0].checked = true;
+  form.tradetype3[0].checked = true;
+  form.tradetype4[0].checked = true;
+  form.newSoldier.value = 0;
+  form.newFarmer.value = 0;
+  form.newWoodcut.value = 0;
+  form.newMiner.value = 0;
+  form.taxAmount.value = 0;
+  form.feedAmount.value = 0;
+  form.tradeFood.value = 0;
+  form.tradeWood.value = 0;
+  form.tradeStone.value = 0;
+  form.tradeMetal.value = 0;
+}
+
+function zeroInputSPCFC(form, type, val) {
+  if (type == 'food') {
+    form.tradeFood.value = '0';
+    currentInt = player.food + (farmTemp * foodRate);
+    form.changeFood.value = String(currentInt); 
+  }
+  else if (type == 'wood') {
+    form.tradeWood.value = '0'; 
+    currentInt = player.wood + (lumTemp * woodRate);
+    form.changeWood.value = String(currentInt); 
+  }
+  else if (type == 'stone') {
+    form.tradeStone.value = '0'; 
+    currentInt = player.stone + (mineTemp * stoneRate);
+    form.changeStone.value = String(currentInt); 
+  }
+  else if (type == 'metal') {
+    form.tradeMetal.value = '0';
+    currentInt = player.metal + (mineTemp * metalRate);
+    form.changeMetal.value = String(currentInt); 
+  }
+  else if(type == 'army'){
+    form.newSoldier.value = '0';  
+    form.changeArmy.value = player.warrior;
+  }
+  else if (type == 'farmer') {
+    form.newFarmer.value = '0';
+    sellChecker(form, form.tradetype1[1].checked, form.tradeFood.value);
+    form.changeFood.value = parseInt(player.food) + checked - (parseInt(form.feedAmount.value) * 2);
+    form.changeFarmers.value = farmers;
+  }
+  else if (type == 'lumberjack') {
+    form.newWoodcut.value = '0';
+    sellChecker(form, form.tradetype2[1].checked, form.tradeWood.value);
+    form.changeWood.value = player.wood + checked;
+    form.changeLumbers.value = lumberjacks
+  }
+  else if (type == 'miner') {
+    form.newMiner.value = '0';
+    sellChecker(form, form.tradetype3[1].checked, form.tradeStone.value);
+    form.changeStone.value = player.stone + checked;
+    sellChecker(form, form.tradetype4[1].checked, form.tradeMetal.value);
+    form.changeMetal.value = player.metal + checked;
+    form.changeMiners.value = miners;
+  }
+  else if (type == 'taxing') {
+    form.taxAmount.value = '0';
+  }
+  else if (type == 'feeding') {
+    form.feedAmount.value = '0';
+    form.changePop.value = player.pop;
+    sellChecker(form, form.tradetype1[1].checked, form.tradeFood.value);
+    form.changeFood.value = parseInt(player.food) + checked + (farmTemp * foodRate);  
+  }
+}
+
+function sellChecker(form, selling, field){
+  checked = parseInt(field);
+  if (selling) {
+    checked = -field;
+  }
+  return checked;
+}
+
+function remainderChecker(form, field, changing, name) {
+  val = field;
+  if (name == 'feeding') {
+    val *= 2;
+  }
+  
+  if (val > 0 && name == 'feeding' && parseInt(changing) - ( val )  < 0  ) {
+    window.alert("My liege, you do not have enough resources to carry out this action.");
+    zeroInputSPCFC(form, name, field);
+    checked = 0;
+    feedVal = 0;
+  }  
+  else if (val < 0 && parseInt(changing) + val < 0 ){
+    window.alert("My liege, you do not have enough resources to carry out this action.");
+    zeroInputSPCFC(form, name, field);
+    feedVal = 0;
+    checked = 0;
+  } 
+
+  return val;
+}
+
+function enoughCoin(form, field, changing, name) {
+  if (name == 'food' && player.currency - (field * foodBuyPrice) < 0) {
+    window.alert("My liege, this move will empty your coffers, unfortunately it cannot be done.");
+    zeroInputSPCFC(form, name, field);
+    checked = 0;
+  } 
+  else if (name == 'wood' && player.currency - (field * woodBuyPrice) < 0) {
+    window.alert("My liege, this move will empty your coffers, unfortunately it cannot be done.");
+    zeroInputSPCFC(form, name, field);
+    checked = 0;
+  } 
+  else if (name == 'stone' && player.currency - (field * stoneBuyPrice) < 0) {
+    window.alert("My liege, this move will empty your coffers, unfortunately it cannot be done.");
+    zeroInputSPCFC(form, name, field);
+    checked = 0;
+  }
+  else if (name == 'metal' && player.currency - (field * metalBuyPrice) < 0) {
+    window.alert("My liege, this move will empty your coffers, unfortunately it cannot be done.");
+    zeroInputSPCFC(form, name, field);
+    checked = 0;   
+  }
+
+}
+
+function updateTrade(form, field, changefield, changing, name, selling){
+  checkPlayState(form, name, field);
+  //Add an Input Checker here
+  if (field == "") {
+    field = '0';
+    zeroInputSPCFC(form, name, field);
+  }
+  else if (parseInt(field) < 0) {
+    window.alert("Please input a number greater than 0.")
+    field = '0';
+    zeroInputSPCFC(form, name, field);
+  }
+  
+  
+  
+  
+  sellChecker(form, selling, field);
+  remainderChecker(form, checked, changing, name);
+  enoughCoin(form, checked, changing, name);
+  updateChange(form, name, checked);
+  updateMoney(form);
+  
+}
+
+function updateWorkers(form, field, name) {
+  checkPlayState(form, name, field);
+  if (field == "") {
+    field = '0';
+    zeroInputSPCFC(form, name, field);
+  }
+  else if (parseInt(field) < 0) {
+    window.alert("Please input a number greater than 0.")
+    field = '0';
+    zeroInputSPCFC(form, name, field);
+  }
+
+  popParse = parseInt(player.pop);
+  unavailable = (popParse * 0.2);
+  workingPop = parseInt(form.currentLumbers.value) + parseInt(form.currentMiners.value) + parseInt(form.currentFarmers.value) + parseInt(form.currentArmy.value);
+  value = parseInt(field);
+  
+  if (name == 'lumberjack'){
+    lumTemp = value + lumberjacks;
+    form.changePop.value = player.pop - (workingPop + value + parseInt(form.newFarmer.value) + parseInt(form.newSoldier.value) + parseInt(form.newMiner.value));
+    form.changeLumbers.value = lumTemp;
+  }
+  else if (name == 'farmer'){
+    farmTemp = value + farmers;
+    form.changePop.value = player.pop - (workingPop + value + parseInt(form.newWoodcut.value) + parseInt(form.newSoldier.value) + parseInt(form.newMiner.value));
+    form.changeFarmers.value = farmTemp;
+  }
+  else if (name == 'miner'){
+    mineTemp = value + miners;
+    form.changePop.value = player.pop - (workingPop + value + parseInt(form.newFarmer.value) + parseInt(form.newSoldier.value) + parseInt(form.newWoodcut.value));
+    form.changeMiners.value = mineTemp;
+  }
+  else if(name == 'army'){
+    armyTemp = value + parseInt(player.warrior);
+    form.changePop.value = player.pop - (workingPop + value + parseInt(form.newFarmer.value) + parseInt(form.newWoodcut.value) + parseInt(form.newMiner.value));
+    form.changeArmy.value = armyTemp;
+  }
+
+  workingPop2 = parseInt(form.changeLumbers.value) + parseInt(form.changeMiners.value) + parseInt(form.changeFarmers.value) + parseInt(form.changeArmy.value);
+  available = popParse - workingPop2;
+  
+  if (available - unavailable < 0) {
+    window.alert("My liege, the remaining people are sick or elderly, and are unable to work for you.")
+    field = 0; 
+    zeroInputSPCFC(form, name, field);
+    updateWorkers(form, field, name);
+  }
+
+  updateChange(form, name, 0);
+} 
+
+function updateTax(form, field, name) {
+  workingPop = farmTemp + lumTemp + mineTemp + armyTemp;
+  checkPlayState(form, name, field);
+  if (field == "") {
+    field = '0';
+    zeroInputSPCFC(form, name, field);
+  }
+  else if (parseInt(field) < 0) {
+    window.alert("Please input a number greater than 0.")
+    field = '0';
+    zeroInputSPCFC(form, name, field);
+  } else if (parseInt(field) > 50) {
+    window.alert("You cannot tax more than 50%.")
+    field = '0';
+    zeroInputSPCFC(form, name, field);
+  }
+
+  taxVal = parseInt(field) * 0.01;
+  totalTax = Math.round(taxVal * workingPop * wages);
+  acceptableTax(form);
+  updateMoney(form);
+}
+
+function updateFeeding(form, field, name) {
+  feedVal = parseInt(field);
+  pop = parseInt(player.pop);
+  checkPlayState(form, name, field);
+  if (feedVal <= pop * 0.5) {
+    window.alert("My liege, though it is not my place to question, this course of action would see manyof your subjects starved.");
+  }
+
+  if (field == "") {
+    field = '0';
+    feedVal = 0;
+    zeroInputSPCFC(form, name, field);
+  }
+  else if (feedVal < 0) {
+    window.alert("Please input a number greater than 0.")
+    field = '0';
+    feedVal = 0;
+    zeroInputSPCFC(form, name, field);
+  }
+
+  if (pop - feedVal < 0) {
+    window.alert("You are trying to feed more people than you have, my Lord. Greatness is not wasteful.")
+    field = '0';
+    feedVal = 0;
+    zeroInputSPCFC(form, name, field);
+  }
+
+  
+
+  updateChange(form, name, feedVal);
+  sellChecker(form, form.tradetype1[1].checked, form.tradeFood.value);
+  remainderChecker(form, feedVal, player.food, 'feeding');
+  form.changeFood.value = parseInt(player.food) + checked - (feedVal * 2) + (farmTemp * foodRate);
+}
+
+function updateMoney(form) {
+    salesMoney(form)
+    form.changeMoney.value = parseInt(player.currency) + totalSales + totalTax;
+  }
+
+function salesMoney(form){
+  var foodMultiplier;
+  var woodMultiplier;
+  var stoneMultiplier;
+  var metalMultiplier;
+
+  if (form.tradetype1[0].checked) {
+    foodMultiplier = -foodBuyPrice;
+  }
+  else if (form.tradetype1[1].checked) {
+    foodMultiplier = foodSellPrice;
+  }
+
+  if (form.tradetype2[0].checked) {
+    woodMultiplier = -woodBuyPrice;
+  }
+  else if (form.tradetype2[1].checked) {
+    woodMultiplier = woodSellPrice;
+  }
+
+  if (form.tradetype3[0].checked) {
+    stoneMultiplier = -stoneBuyPrice;
+  }
+  else if (form.tradetype3[1].checked) {
+    stoneMultiplier = stoneSellPrice;
+  }
+
+  if (form.tradetype4[0].checked) {
+    metalMultiplier = -metalBuyPrice;
+  }
+  else if (form.tradetype4[1].checked) {
+    metalMultiplier = metalSellPrice;
+  }
+
+  woodSales = form.tradeWood.value * woodMultiplier;
+  foodSales = form.tradeFood.value * foodMultiplier;
+  stoneSales = form.tradeStone.value * stoneMultiplier;
+  metalSales = form.tradeMetal.value * metalMultiplier;
+  totalSales = parseInt(woodSales) + parseInt(foodSales) + parseInt(stoneSales) + parseInt(metalSales);
+  return totalSales;
+}
+
+//Need to think more carefully about this function and population values.
+function yearlyPopChange(form){
+  holder = parseInt(form.totalPop.value);
+  army = parseInt(player.warrior);
+  workingPop = lumberjacks + miners + army + farmers;
+  birthRandom = (0.34 * (workingPop)) + 7;
+  yearlyBirth = Math.floor(Math.random() * birthRandom);
+  deathRandom = ((0.1 * holder) + (0.15 * workingPop) + (0.2 * yearlyBirth));
+  yearlyDeath = Math.floor(Math.random() * deathRandom);
+  peopleFed = parseInt(form.feedAmount.value);
+  newWorkingPop = parseInt(form.changeFarmers.value) + parseInt(form.changeLumbers.value) + parseInt(form.changeMiners.value) + parseInt(form.newSoldier.value);
+
+  if (peopleFed <= 0 ){
+    window.alert("My lord... I am afraid to report to you that all of your subjects are dead, you cannot go on.");
+    location.reload();
+  }
+
+  if (holder + workingPop < 30) {
+    yearlyDeath = 10;
+  }
+  deadEachYear = yearlyDeath;
+  bornEachYear = yearlyBirth;
+
+  miners = Math.floor(miners - ((miners / player.pop ) * yearlyDeath));
+  lumberjacks = Math.floor(lumberjacks - ((lumberjacks / player.pop )) * yearlyDeath);
+  farmers = Math.floor(farmers - ((farmers / player.pop ) * yearlyDeath));
+  army = Math.floor(army - ((army / player.pop ) * yearlyDeath));
+  immiAmount = immigrateYearly(form, yearlyBirth, yearlyDeath, infrastructure);
+  player.pop = parseInt(holder + yearlyBirth - yearlyDeath + immiAmount);
+  
+}
+
+function immigrateYearly(form, births, deaths, multi){
+  holder = parseInt(player.pop);
+  immigrants = Math.floor( ( ( (births - deaths) * multi) /holder ) * 100);
+  
+  if (immigrants < 0 ){
+    immigrants = 0;
+  }
+  immiEachYear = immigrants;
+  return immigrants;
+}
+
+function runGameChecks(form) {
+  if (parseInt(player.pop) <= 0) {
+    window.alert("My lord... I am afraid to report to you that all of your subjects are dead, you cannot go on.");
+    location.reload();
+  }
+  if (parseInt(player.currency) <= 0 ){
+    window.alert("My liege, we have run out of money, and the people have lost faith in you. They have left the city in search of better prospects.")
+    location.reload();
+  }
+
+  
+}
+
+function strikeChecker(form) {
+  goodTax = acceptableTax(form);
+  checkFairness = negStrikeCounter;
+  if (parseInt(form.taxAmount.value) > goodTax) {
+    strikeCounter += 1;
+    negStrikeCounter = 0;
+  }
+  else {
+    negStrikeCounter += 1;
+    strikeCounter -= 1;
+  }
+
+  if (negStrikeCounter == 3 && strikeCounter > 0 ){
+      wages = calculateWage(); 
+      strikeCounter = 0;
+      negStrikeCounter = 0;
+    }
+
+  if (negStrikeCounter == checkFairness){
+    if (strikeCounter == 2) {
+      wages = Math.round(calculateWage() * 0.75);
+    }
+    else if (strikeCounter == 5) {
+      wages = Math.round(calculateWage() * 0.45);
+    }
+   else if (strikeCounter == 7) {
+      wages = Math.round(calculateWage() * 0.1);
+    }
+   else if (strikeCounter == 10) {
+      window.alert("My Lord, I am afraid you have taxed the people too much for too long, and they will no longer stand for it. You have been overthrown.");
+      location.reload();
+    }
+  }
+  
+}
+
+function enemyChecker(form) {
+  if (counter == 3) {
+    numEnemies = 1;
+    enemy = new civilization("enemy", "stone", player.pop , (player.pop / 4), player.food, player.wood, player.stone, player.metal + 100, 0, parseInt(player.currency) + 1000)
+    timeToAttack = Math.round((Math.random() * 5) + 1);
+    document.getElementById("warButton").disabled = false;
+  }
+
+  enemySpawner = Math.round(Math.random() * 100);
+
+  if (numEnemies == 0 && enemySpawner < 25) {
+      numEnemies = 1;
+      timeToAttack = Math.round((Math.random() * 5) + 1);
+      document.getElementById("warButton").disabled = false;
+      enemy = new civilization("enemy", "stone", enemyValues(player.pop) , enemyValues(player.pop/4), enemyValues(player.food), enemyValues(player.wood), enemyValues(player.stone), enemyValues(player.metal), 0, enemyValues(player.currency));
+  }
+
+  if (timeToAttack > 0 ) {
+    timeToAttack -= 1;
+    }
+
+  warOutcome(form);
+}
+
+function enemyValues(form, input){
+  val = parseInt(input);
+  max = val + (0.25 * val);
+  min = val - (0.15 * val);
+  output = Math.floor(Math.random() * (max - min) + min);
+  return output;
+}
+
+
+function warOutcome(form) {
+  if (numEnemies == 1 && timeToAttack == 0 || numEnemies == 1 && attackOpponent == 1) {
+    playerLevel = combatLevel(form, player);
+    enemyLevel = combatLevel(form, enemy);
+    allFighters = player.warrior + enemy.warrior;
+    allPop = player.pop + enemy.pop;
+    allMoney = player.currency + enemy.currency;
+    allFood = player.food + enemy.food;
+    allWood = player.wood + enemy.wood;
+    allStone = player.stone + enemy.stone;
+    allMetal = player.metal + enemy.metal;
+    if (playerLevel > enemyLevel){ //Player more likely to win, better survival
+      playerChance = Math.round((Math.random() * (100 - 70)) + 70);
+      enemyChance = Math.round(Math.random() * 100);
+      if (playerChance > enemyChance){
+        //win conditions
+        player.pop = spoilsOfWar(form, player.pop, enemy.pop, allPop, 0.21, "plus");
+        player.warrior = spoilsOfWar(form, player.warrior, player.warrior, allFighters, 0.1, "minus");
+        player.currency = spoilsOfWar(form, player.currency, enemy.currency, allMoney, 0.25, "plus");
+        player.food = spoilsOfWar(form, player.food, enemy.food, allFood, 0.4, "plus");
+        player.wood = spoilsOfWar(form, player.wood, enemy.wood, allWood, 0.25, "plus");
+        player.stone = spoilsOfWar(form, player.stone, enemy.stone, allStone, 0.14, "plus");
+        player.metal = spoilsOfWar(form, player.metal, enemy.metal, allMetal, 0.08, "plus");
+        numEnemies = 0;
+        enemy = new civilization(name, "None", 0 , 0 ,0 ,0 ,0 ,0 ,0 ,0 ,0); 
+        updateCurrent(form, player);
+        updateCurrent(form, enemy);   
+        resetWorkforce(form);  
+        document.getElementById("warButton").disabled = true; 
+      } 
+      else if (enemyChance > playerChance) {
+        //loss conditions
+        window.alert(`My lord, I am afraid to say that, though we have come up against an opponent of lesser strength than us, our forces have been defeated.` +
+          `The enemy's advance troops have reached your fortress, and are taking over as we speak. This is the end for your rule... it has been a pleasure to serve under you.`
+          );
+          location.reload();
+      }
+      else {
+        //draw conditions
+        player.pop = spoilsOfWar(form, player.pop, player.pop, allPop, 0.21, "minus");
+        player.warrior = spoilsOfWar(form, player.warrior, player.warrior, allFighters, 0.1, "minus");
+        player.currency = spoilsOfWar(form, player.currency, player.currency, allMoney, 0.25, "minus");
+        player.food = spoilsOfWar(form, player.food, player.food, allFood, 0.4, "minus");
+        player.wood = spoilsOfWar(form, player.wood, player.wood, allWood, 0.25, "minus");
+        player.stone = spoilsOfWar(form, player.stone, player.stone, allStone, 0.14, "minus");
+        player.metal = spoilsOfWar(form, player.metal, player.metal, allMetal, 0.08, "minus");
+        
+        enemy.pop = spoilsOfWar(form, enemy.pop, enemy.pop, allPop, 0.3, "minus");
+        enemy.warrior = spoilsOfWar(form, enemy.warrior, enemy.warrior, allFighters, 0.15, "minus");
+        enemy.currency = spoilsOfWar(form, enemy.currency, enemy.currency, allMoney, 0.37, "minus");
+        enemy.food = spoilsOfWar(form, enemy.food, enemy.food, allFood, 0.6, "minus");
+        enemy.wood = spoilsOfWar(form, enemy.wood, enemy.wood, allWood, 0.37, "minus");
+        enemy.stone = spoilsOfWar(form, enemy.stone, enemy.stone, allStone, 0.21, "minus");
+        enemy.metal = spoilsOfWar(form, enemy.metal, enemy.metal, allMetal, 0.12, "minus");
+        timeToAttack = Math.round((Math.random() * 5) + 1);
+        updateCurrent(form, player);
+        updateCurrent(form, enemy);
+        resetWorkforce(form); 
+      }
+    }
+    else if (playerLevel < enemyLevel) { //Player less likely to win, better spoils
+      playerChance = Math.round(Math.random() * 100);
+      enemyChance = Math.round((Math.random() * (100 - 65)) + 65);
+      if (playerChance > enemyChance){
+        //win conditions
+        player.pop = spoilsOfWar(form, player.pop, enemy.pop, allPop, 0.21, "minus");
+        player.warrior = spoilsOfWar(form, player.warrior, player.warrior, allFighters, 0.1, "minus");
+        player.currency = spoilsOfWar(form, player.currency, enemy.currency, allMoney, 0.25, "minus");
+        player.food = spoilsOfWar(form, player.food, enemy.food, allFood, 0.5, "plus");
+        player.wood = spoilsOfWar(form, player.wood, enemy.wood, allWood, 0.4, "plus");
+        player.stone = spoilsOfWar(form, player.stone, enemy.stone, allStone, 0.18, "plus");
+        player.metal = spoilsOfWar(form, player.metal, enemy.metal, allMetal, 0.15, "plus");
+        numEnemies = 0;
+        enemy = new civilization(name, "None", 0 , 0 ,0 ,0 ,0 ,0 ,0 ,0 ,0); 
+        updateCurrent(form, player);
+        updateCurrent(form, enemy);   
+        resetWorkforce(form);
+        document.getElementById("warButton").disabled = true;
+      } 
+      else if (enemyChance > playerChance) {
+        //loss conditions
+        window.alert(`My lord, I am afraid to say that the might of our enemy was simply too great, our forces and defences have been annihiliated.` +
+          `Their King himself has come with troops and is taking over as we speak. I fear we will not reach a merciful end at his hand...`
+          );
+          location.reload();
+      }
+      else {
+        //draw conditions
+        enemy.pop = spoilsOfWar(form, enemy.pop, enemy.pop, allPop, 0.21, "minus");
+        enemy.warrior = spoilsOfWar(form, enemy.warrior, enemy.warrior, allFighters, 0.1, "minus");
+        enemy.currency = spoilsOfWar(form, enemy.currency, enemy.currency, allMoney, 0.25, "minus");
+        enemy.food = spoilsOfWar(form, enemy.food, enemy.food, allFood, 0.4, "minus");
+        enemy.wood = spoilsOfWar(form, enemy.wood, enemy.wood, allWood, 0.25, "minus");
+        enemy.stone = spoilsOfWar(form, enemy.stone, enemy.stone, allStone, 0.14, "minus");
+        enemy.metal = spoilsOfWar(form, enemy.metal, enemy.metal, allMetal, 0.08, "minus");
+        
+        player.pop = spoilsOfWar(form, player.pop, player.pop, allPop, 0.3, "minus");
+        player.warrior = spoilsOfWar(form, player.warrior, player.warrior, allFighters, 0.15, "minus");
+        player.currency = spoilsOfWar(form, player.currency, player.currency, allMoney, 0.37, "minus");
+        player.food = spoilsOfWar(form, player.food, player.food, allFood, 0.6, "minus");
+        player.wood = spoilsOfWar(form, player.wood, player.wood, allWood, 0.37, "minus");
+        player.stone = spoilsOfWar(form, player.stone, player.stone, allStone, 0.21, "minus");
+        player.metal = spoilsOfWar(form, player.metal, player.metal, allMetal, 0.12, "minus");
+      }
+    }
+    else if (playerLevel == enemyLevel){
+      playerChance = Math.round(Math.random() * 100);
+      enemyChance = Math.round(Math.random() * 100);
+      if (playerChance > enemyChance){
+        //win conditions
+        player.pop = spoilsOfWar(form, player.pop, player.pop, allPop, 0.1, "minus");
+        player.warrior = spoilsOfWar(form, player.warrior, player.warrior, allFighters, 0.1, "minus");
+        player.currency = spoilsOfWar(form, player.currency, enemy.currency, allMoney, 0.12, "plus");
+        player.food = spoilsOfWar(form, player.food, enemy.food, allFood, 0.2, "plus");
+        player.wood = spoilsOfWar(form, player.wood, enemy.wood, allWood, 0.12, "plus");
+        player.stone = spoilsOfWar(form, player.stone, enemy.stone, allStone, 0.07, "plus");
+        player.metal = spoilsOfWar(form, player.metal, enemy.metal, allMetal, 0.04, "plus");
+        numEnemies = 0;
+        enemy = new civilization(name, "None", 0 , 0 ,0 ,0 ,0 ,0 ,0 ,0 ,0);
+        updateCurrent(form, player);
+        updateCurrent(form, enemy);   
+        resetWorkforce(form);
+        document.getElementById("warButton").disabled = true; 
+      } 
+      else if (enemyChance > playerChance) {
+        //loss conditions
+        window.alert(`The choice of war has lead us and our enemy down a dark path. One from which I believe neither of our civilizations will ever recover.` +
+        `Many of our people have lost their lives, and those that remain have scattered throughout the land in the hope that they might start anew. I intend to do the same. ` +
+        `If I may be so bold... my lord... I suggest you do the same.`
+        );
+      }
+      else {
+        //draw conditions
+        player.pop = spoilsOfWar(form, player.pop, player.pop, allPop, 0.15, "minus");
+        player.warrior = spoilsOfWar(form, player.warrior, player.warrior, allFighters, 0.1, "minus");
+        player.currency = spoilsOfWar(form, player.currency, player.currency, allMoney, 0.2, "minus");
+        player.food = spoilsOfWar(form, player.food, player.food, allFood, 0.34, "minus");
+        player.wood = spoilsOfWar(form, player.wood, player.wood, allWood, 0.2, "minus");
+        player.stone = spoilsOfWar(form, player.stone, player.stone, allStone, 0.1, "minus");
+        player.metal = spoilsOfWar(form, player.metal, player.metal, allMetal, 0.05, "minus");
+        
+        enemy.pop = spoilsOfWar(form, enemy.pop, enemy.pop, allPop, 0.15, "minus");
+        enemy.warrior = spoilsOfWar(form, enemy.warrior, enemy.warrior, allFighers, 0.1, "minus");
+        enemy.currency = spoilsOfWar(form, enemy.currency, enemy.currency, allMoney, 0.2, "minus");
+        enemy.food = spoilsOfWar(form, enemy.food, enemy.food, allFood, 0.34, "minus");
+        enemy.wood = spoilsOfWar(form, enemy.wood, enemy.wood, allWood, 0.2, "minus");
+        enemy.stone = spoilsOfWar(form, enemy.stone, enemy.stone, allStone, 0.1, "minus");
+        enemy.metal = spoilsOfWar(form, enemy.metal, enemy.metal, allMetal, 0.05, "minus");
+        timeToAttack = Math.round((Math.random() * 5) + 1);
+        updateCurrent(form, player);
+        updateCurrent(form, enemy);
+        resetWorkforce(form); 
+      }
+    }
+  }
+}
+
+function spoilsOfWar(form, playVal, takeVal, totVal, mtplr, op) {
+  if (op == "plus"){
+    playVal = Math.round(parseInt((playVal) + (Math.random() * (parseInt(mtplr) * (parseInt(takeVal) + Math.random() * parseInt(totVal))))));
+  }
+  else if (op == "minus") {
+    playVal = Math.round((parseInt(playVal) - (Math.random() * (parseInt(mtplr) * (parseInt(takeVal) + Math.random() * parseInt(totVal))))));
+  }
+  console.log(typeof playVal);
+  return playVal;
+}
+
+
+function resetWorkforce(form) {
+  miners = 0;
+  lumberjacks = 0;
+  farmers = 0;
+}
+
+
+function combatLevel(form, civ) {
+  level = parseInt(civ.warrior) + (3*education) + (5*infrastructure) + (10*war) + (Math.round(parseInt(civ.currency) / 1000));
+  return level;
+}
+
+function plagueEvent(form){
+
+}
+
+function calculateWage() {
+  wages = 50 + education + infrastructure;
+  return wages;
+}
+
+function goToWar(form){
+  attackOpponent = 1;
+  document.getElementById("warButton").disabled = true; 
+}
+
+function investEducation(form) {
+
+}
+
+
+function investInfrastructure(form) {
+  
+}
+
+function investWar(form) {
+  
+}
+
+function advanceAge(form) {
+
+}
+
+//Creates a 0-100 random generator and then weighs die for commonality of events.
+function randomEvents(form) {
+  dice = Math.random() * 100; // 1% chance of occurring
+  d1 = 0.2 * dice; //5%
+  d2 = 0.1 * dice;
+  totalPop = parseInt(player.pop) + lumberjacks + miners + farmers + parseInt(player.warrior);
+  moneyEvent = parseInt(player.currency);
+  foodEvent = parseInt(player.food);
+
+  
+  
+  if (dice == 1) {
+    totalPop = totalPop /4;
+    player.pop = totalPop;
+    randomEvent = "A violent storm has brought much hardship to our settlement, many people have not survived."
+  } 
+  else if (d2 == 5) {
+    foodEvent = foodEvent/2;
+    player.food = foodEvent;
+    randomEvent = "My Lord... locusts have destroyed over half our crop, our supplies have been heavily cut down."
+  }
+  else if (d1 == 1) {
+    moneyEvent = moneyEvent + (0.2 * moneyEvent);
+    player.currency = moneyEvent;
+    randomEvent = "In a twist of good fortune, one of our most loyal citizens has stumbled across a hoarding of money in the woods, and have returned home with it for our use."
+  } else {
+    randomEvent =""
+  }
+
+}
+
+function acceptableTax(form) {
+  increaser = education + infrastructure + Math.round(war /5);
+  goodTax = Math.round((wages/3)) + ((increaser/10));
+  return goodTax;
+
+}
+
+function yearlyReport(form) {
+  workingPop = miners + lumberjacks + farmers + parseInt(player.warrior);
+  notWorking = player.pop - workingPop;
+  cannotWork = Math.round(player.pop * 0.2);
+  available = notWorking - cannotWork;
+  farmedFood = farmers * foodRate;
+  farmedWood = lumberjacks * woodRate;
+  farmedStone = miners * stoneRate;
+  farmedMetal = miners * metalRate;
+  taxing = Math.round( (0.01 * parseInt(form.taxAmount.value)) * workingPop * wages);
+  taxed = Math.round(parseInt(form.taxAmount.value));
+  expenses = parseInt(player.currency) - parseInt(form.currentMoney.value);
+  goodTax = acceptableTax(form);
+  if (available < 0) {
+    available = 0;
+  }
+
+  if (bornEachYear - deadEachYear > 0){
+    ofAge = bornEachYear - deadEachYear;
+  } 
+  else {
+    ofAge = 0;
+  } 
+
+  if (counter == 1){
+    form.yearReport.value = ` My Lord, I am your personal aide, here to report that in your ` +
+    `first year of rule, the population of ` + playerName + ` stands at ` + player.pop + `, with ` + available +  ` people who currently have no` +
+    ` assigned role, as well as ` + cannotWork + ` people who are unable to work. ` +
+    `We also currently have ` + player.currency +  ` available to use for trading. ` +
+    `Our stores currently stand at ` + player.food + ` food, ` + player.wood +
+    ` wood, ` + player.stone + ` stone and... ` + player.metal + `  metal, a new material we have recently discovered. ` +
+    `We haven't yet figured out how to use it, but the workers think it could be useful, and it fetches great prices at the bazaar. ` +
+    `Your subjects are currently earning a wage of ` + wages + ` coins, a value which reflects your investment in their society. `
+    
+    ;
+  } 
+  else {
+    form.yearReport.value = ` My Lord, I am here to report to you that in year ` + counter + 
+    ` the population of ` + playerName + ` has reached ` + player.pop + `, with ` + available +  ` people who currently have no` +
+    ` assigned role, as well as ` + cannotWork + ` people who are unable to work. \n ` +
+    immiEachYear + ` new people have immigrated here, and ` + bornEachYear + ` new people became of working age.\n` +
+    `I must also report to you that ` + deadEachYear + ` of your citizens have died, a number of whom were among your working men. ` +
+    `We also currently have ` + player.currency +  ` coin available to use for trading. ` +
+    `Our stores currently stand at ` + player.food + ` food, ` + player.wood +
+    ` wood, ` + player.stone + ` stone and, ` + player.metal + `  metal. Last year we reported returns of: ` +
+    farmedFood + ` food, ` + farmedWood + ` wood, ` + farmedStone + ` stone and, ` + farmedMetal +
+    ` metal from our working population of ` + workingPop +
+    `: (` + farmers + ` farmers, ` + lumberjacks + ` lumberjacks, ` + miners + ` miners). `  +
+    `You also traded for ` + form.tradeFood.value + ` food, ` + form.tradeWood.value +
+    ` wood, ` + form.tradeStone.value + ` stone and, ` + form.tradeMetal.value + `  metal. This contributed to` + 
+    ' a yearly monetary change of: ' + expenses + `, with ` + taxing + ` taken in tax. \n` +
+    `\n` +
+    `Your subjects are currently earning a wage of ` + wages + ` coins, a value which reflects your investment in their society. `;
+      if (taxed > goodTax) {
+        form.yearReport.value += `They have an issue with this amount of tax, so I would recommend thinking more carefully about it this year. `
+      }
+      else {
+        form.yearReport.value += `They didn't seem to have an issue with the amount of tax. `
+      }
+
+      if (numEnemies == 1 && timeToAttack >= 4){
+        form.yearReport.value += `Our scouts have detected another civilization. We cannot yet work out their intentions, but I would recommend you plan for the worst sire. `
+      }
+      else if (numEnemies == 1 && 1 < timeToAttack < 4) {
+        form.yearReport.value += `The enemy civilization I mentioned to you before appears to be mobilising troops in our direction. It may be too late to rally troops, ` +
+        `but I suggest that we begin now all the same, sir.`;
+      }
+      else if (numEnemies ==1 && timeToAttack == 1) {
+        form.yearReport.value += `Our enemy is almost upon us, I suspect they will begin their attack within this year. I pray for the strength and courage of our men. `
+      }
+    
+     
+    ;
+  }
+  
+}
+
+</SCRIPT>
+
+</head>
+
+<body>
+
+<h1>Survival</h1>
+<form name="gameForm"> 
+
+  <section name="mainDisplay">
+    <textarea name="yearReport" cols="130" rows="30" disabled>
+      Survival -
+
+      You are the leader of your tribe, one of the first settlements of its kind. 
+      Starting in the Stone Age, you must build your tribe's power and lead them to greatness.
+      You will need to adapt, conquer, hunt, mine and gather resources to ensure stability for you and your people. 
+      Will you progress, and take your people to achieve technological wonders never before seen? 
+      Or will you crash and burn? Overthrown by your own subjects or crushed in defeat by an enemy nation.
+      Only time will tell. 
+      Only you can know. 
+
+      --- Press GO to begin.---
+      
+    </textarea>
+    <input type="text" id="civYear" size="8" length="7" disabled>
+    <input type="text" id="civName" size="8" length="7" disabled>
+    <input type="text" id="civAge" size="8" length="7" disabled>
+  </section>
+  <section class="advancementButtons">
+    <ul>
+        <input TYPE="button" id="aY" VALUE="Advance Year" onClick="advanceYear(this.form);" disabled>
+       
+        <input TYPE="button" id="Go" VALUE="GO" onClick="confirm(this.form);">
+
+        <input TYPE="button" id="aA" VALUE="Advance Age" onClick="advanceAge(this.form);" disabled>
+    </ul>
+  </section>
+  <section class="gameReport">
+    <p class="gameCurrent">
+      <h1>Current</h1>
+        <li>Your current money:
+          <input TYPE="text" name="currentMoney" SIZE="8" MAXLENGTH="7" disabled> 
+        </li>
+
+        <li>Your total population is:
+          <input TYPE="text" name="currentPop" SIZE="8" MAXLENGTH="7" disabled> 
+          
+        </li>
+        <li>
+          Farmers
+          <input type="text" name="currentFarmers" size="3" maxlength="3" disabled>
+          Lumberjacks
+          <input type="text" name="currentLumbers" size="3" maxlength="3" disabled>
+          Miners
+          <input type="text" name="currentMiners" size="3" maxlength="3" disabled>
+        </li>
+
+        <li>Your army size is:
+          <input TYPE="text" name="currentArmy" SIZE="8" MAXLENGTH="7" disabled> 
+        </li>
+
+        <li>Your food stores:
+          <input TYPE="text" name="currentFood" SIZE="8" MAXLENGTH="7" disabled> 
+        </li>
+
+        <li>Your wood stores: 
+          <input TYPE="text" name="currentWood" SIZE="8" MAXLENGTH="7" disabled> 
+        </li>
+
+        <li>Your stone stores:
+          <input TYPE="text" name="currentStone" SIZE="8" MAXLENGTH="7" disabled> 
+        </li>
+
+        <li>Your metal stores:
+          <input TYPE="text" name="currentMetal" SIZE="8" MAXLENGTH="7" disabled> 
+        </li>
+
+        <li>Your technology level:
+          <input TYPE="text" name="currentTech" SIZE="8" MAXLENGTH="7" disabled> 
+        </li>
+      </ul>
+    </p>
+
+    <p class="gameInAction">
+      <h1>After This Turn</h1>
+        <li>Money:
+          <input TYPE="text" name="changeMoney" SIZE="8" MAXLENGTH="7" disabled> 
+        </li>
+        <li>Total population:
+          <input TYPE="text" name="totalPop" SIZE="8" MAXLENGTH="7" disabled> 
+        </li>
+
+        <li>
+          Farmers
+          <input type="text" name="changeFarmers" size="3" maxlength="3" disabled>
+          Lumberjacks
+          <input type="text" name="changeLumbers" size="3" maxlength="3" disabled>
+          Miners
+          <input type="text" name="changeMiners" size="3" maxlength="3" disabled>
+        </li>
+
+        <li>Spare population:
+          <input TYPE="text" name="changePop" SIZE="8" MAXLENGTH="7" disabled> 
+        </li>
+
+        <li>Army size:
+          <input TYPE="text" name="changeArmy" SIZE="8" MAXLENGTH="7" disabled> 
+        </li>
+
+        <li>Food:
+          <input TYPE="text" name="changeFood" SIZE="8" MAXLENGTH="7" disabled> 
+        </li>
+
+        <li>Wood: 
+          <input TYPE="text" name="changeWood" SIZE="8" MAXLENGTH="7" disabled> 
+        </li>
+
+        <li>Stone:
+          <input TYPE="text" name="changeStone" SIZE="8" MAXLENGTH="7" disabled> 
+        </li>
+
+        <li>Metal:
+          <input TYPE="text" name="changeMetal" SIZE="8" MAXLENGTH="7" disabled> 
+        </li>
+
+        <li>Technology level:
+          <input TYPE="text" name="changeTech" SIZE="8" MAXLENGTH="7" disabled> 
+        </li>
+      </ul>
+    </p>
+    
+
+    <p class="currentPrices">
+      <h1>Prices</h1>
+      <ul>
+        <li>
+          Food sell price:
+          <input TYPE="text" name="foodSellPrice" SIZE="8" MAXLENGTH="7" disabled> 
+          Food buy price:
+          <input TYPE="text" name="foodBuyPrice" SIZE="8" MAXLENGTH="7" disabled>
+        </li>
+
+        <li>
+          Wood sell price:
+          <input TYPE="text" name="woodSellPrice" SIZE="8" MAXLENGTH="7" disabled> 
+          Wood buy price:
+          <input TYPE="text" name="woodBuyPrice" SIZE="8" MAXLENGTH="7" disabled>
+        </li>
+        
+        <li>
+          Stone sell price:
+          <input TYPE="text" name="stoneSellPrice" SIZE="8" MAXLENGTH="7" disabled> 
+          Stone buy price:
+          <input TYPE="text" name="stoneBuyPrice" SIZE="8" MAXLENGTH="7" disabled> 
+        </li>
+
+        <li>
+          Metal sell price:
+          <input TYPE="text" name="metalSellPrice" SIZE="8" MAXLENGTH="7" disabled> 
+          Metal buy price:
+          <input TYPE="text" name="metalBuyPrice" SIZE="8" MAXLENGTH="7" disabled> 
+        </li>
+
+      </ul>
+    </p>
+
+    <p class="enemyStats">
+      <h1>Enemy</h1>
+      <li>Money: 
+        <input TYPE="text" name="enemyMoney" SIZE="8" MAXLENGTH="7" disabled>
+      </li>
+
+      <li>Population:
+        <input TYPE="text" name="enemyPop" SIZE="8" MAXLENGTH="7" disabled>
+      </li>
+
+      <li>Army size:
+        <input TYPE="text" name="enemyArmy" SIZE="8" MAXLENGTH="7" disabled>
+      </li>
+      
+      <li>Food stores:
+        <input TYPE="text" name="enemyFood" SIZE="8" MAXLENGTH="7" disabled>
+      </li>
+
+      <li>Wood stores:
+        <input TYPE="text" name="enemyWood" SIZE="8" MAXLENGTH="7" disabled>
+      </li>
+
+      <li>Stone stores:
+        <input TYPE="text" name="enemyStone" SIZE="8" MAXLENGTH="7" disabled>
+      </li>
+
+      <li>Metal stores:
+        <input TYPE="text" name="enemyMetal" SIZE="8" MAXLENGTH="7" disabled>
+      </li>
+
+    </p>
+
+  </section>
+
+  <section class="gameInputs">
+    <h1>Make Your Choices</h1>
+  <ul>
+    <li>How much food will you trade:
+      <input TYPE="radio" name="tradetype1" value="buy" checked onchange="updateTrade(this.form, form.tradeFood.value, form.changeFood.value, player.food, 'food', form.tradetype1[1].checked);"> Buy /
+    <input TYPE="radio" name="tradetype1" value="sell" onchange="updateTrade(this.form, form.tradeFood.value, form.changeFood.value, player.food, 'food', form.tradetype1[1].checked);" > Sell: 
+      <input type="number" name="tradeFood"  size="8" maxlength="7" disabled onchange="updateTrade(this.form, form.tradeFood.value, form.changeFood.value, player.food, 'food', form.tradetype1[1].checked);">
+    </li>
+
+    <li>How much wood will you trade:
+      <input TYPE="radio" name="tradetype2" value="buy" checked onchange="updateTrade(this.form, form.tradeWood.value, form.changeWood.value, player.wood, 'wood', form.tradetype2[1].checked);"> Buy /
+    <input TYPE="radio" name="tradetype2" value="sell" onchange="updateTrade(this.form, form.tradeWood.value, form.changeWood.value, player.wood, 'wood', form.tradetype2[1].checked);"> Sell: 
+      <input type="number" name="tradeWood"  size="8" maxlength="7" disabled onchange="updateTrade(this.form, form.tradeWood.value, form.changeWood.value, player.wood, 'wood', form.tradetype2[1].checked);">
+    </li>
+
+    <li>How much stone will you trade:
+      <input TYPE="radio" name="tradetype3" value="buy" checked onchange="updateTrade(this.form, form.tradeStone.value, form.changeStone.value, player.stone, 'stone', form.tradetype3[1].checked);"> Buy /
+    <input TYPE="radio" name="tradetype3" value="sell" onchange="updateTrade(this.form, form.tradeStone.value, form.changeStone.value, player.stone, 'stone', form.tradetype3[1].checked);"> Sell: 
+      <input type="number" name="tradeStone"  size="8" maxlength="7" disabled onchange="updateTrade(this.form, form.tradeStone.value, form.changeStone.value, player.stone, 'stone', form.tradetype3[1].checked);">
+    </li>
+
+    <li>How much metal will you trade:
+      <input TYPE="radio" name="tradetype4" value="buy" checked onchange="updateTrade(this.form, form.tradeMetal.value, form.changeMetal.value, player.metal, 'metal', form.tradetype4[1].checked);"> Buy /
+    <input TYPE="radio" name="tradetype4" value="sell" onchange="updateTrade(this.form, form.tradeMetal.value, form.changeMetal.value, player.metal, 'metal', form.tradetype4[1].checked);"> Sell: 
+      <input type="number" name="tradeMetal"  size="3" maxlength="3" disabled onchange="updateTrade(this.form, form.tradeMetal.value, form.changeMetal.value, player.metal, 'metal', form.tradetype4[1].checked);">
+    </li>
+
+    <li>How will you direct your people?
+      Enlist (Army): <input type="number" name="newSoldier"  size="8" maxlength="7" disabled onchange="updateWorkers(this.form, form.newSoldier.value, 'army');">
+      Agriculture (Food): <input type="number" name="newFarmer"  size="8" maxlength="7" disabled onchange="updateWorkers(this.form, form.newFarmer.value, 'farmer');">
+      Lumber (Wood): <input type="number" name="newWoodcut"  size="8" maxlength="7" disabled onchange="updateWorkers(this.form, form.newWoodcut.value, 'lumberjack');">
+      Miners (Stone & Metal): <input  type="number" name="newMiner"  size="8" maxlength="7" disabled onchange="updateWorkers(this.form, form.newMiner.value, 'miner');">
+    </li>
+
+    <li>How much tax will you take (%)?
+        <input type="number" name="taxAmount"  size="3" maxlength="3" disabled onchange="updateTax(this.form, form.taxAmount.value, 'taxing');">
+    </li>
+
+    <li>How many people will you feed?
+      <input type="number" name="feedAmount"  size="8" maxlength="7" disabled onchange="updateFeeding(this.form, form.feedAmount.value, 'feeding');">
+    </li>
+  </ul>
+  </section>
+
+  <section class="extraButtons">
+    <input type="button" id="warButton" value="WAR!" size="5" disabled onclick="goToWar(this.form);">
+  </section>
+
+ 
+</form>
+
+</html>
